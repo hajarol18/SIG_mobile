@@ -82,8 +82,42 @@ class _PolygonDrawerScreenState extends State<PolygonDrawerScreen> {
     if (_points.length < 3) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Un polygone doit avoir au moins 3 points'),
+          content: Text('Un polygone doit avoir au moins 3 points. Veuillez ajouter plus de points sur la carte.'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // Vérifier que le polygone n'est pas trop petit (distance minimale entre points)
+    bool isValidPolygon = true;
+    const double minDistanceMeters = 10.0; // Minimum 10 mètres entre points
+    
+    for (int i = 0; i < _points.length - 1; i++) {
+      try {
+        final distance = Geolocator.distanceBetween(
+          _points[i].latitude,
+          _points[i].longitude,
+          _points[i + 1].latitude,
+          _points[i + 1].longitude,
+        );
+        if (distance < minDistanceMeters) {
+          isValidPolygon = false;
+          break;
+        }
+      } catch (e) {
+        // En cas d'erreur, on continue (peut arriver sur web)
+        break;
+      }
+    }
+    
+    if (!isValidPolygon) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Les points sont trop proches (minimum 10 mètres). Veuillez espacer davantage les points du polygone pour une meilleure précision.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
         ),
       );
       return;

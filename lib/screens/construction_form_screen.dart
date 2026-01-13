@@ -6,7 +6,9 @@ import '../providers/construction_provider.dart';
 import '../widgets/polygon_drawer.dart';
 
 class ConstructionFormScreen extends StatefulWidget {
-  const ConstructionFormScreen({super.key});
+  final Construction? constructionToEdit;
+  
+  const ConstructionFormScreen({super.key, this.constructionToEdit});
 
   @override
   State<ConstructionFormScreen> createState() => _ConstructionFormScreenState();
@@ -20,6 +22,27 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
   ConstructionType _selectedType = ConstructionType.residentiel;
   List<List<double>>? _polygonCoordinates;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Si on édite une construction, pré-remplir les champs
+    if (widget.constructionToEdit != null) {
+      final construction = widget.constructionToEdit!;
+      _adresseController.text = construction.adresse;
+      _contactController.text = construction.contact ?? '';
+      _notesController.text = construction.notes ?? '';
+      _selectedType = construction.type;
+      try {
+        _polygonCoordinates = (jsonDecode(construction.geometry) as List)
+            .map((coord) => [coord[0] as double, coord[1] as double])
+            .toList()
+            .cast<List<double>>();
+      } catch (e) {
+        _polygonCoordinates = null;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -50,8 +73,20 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
     if (_polygonCoordinates == null || _polygonCoordinates!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Veuillez dessiner un polygone sur la carte'),
+          content: Text('Veuillez dessiner un polygone sur la carte en cliquant sur le bouton "Dessiner sur la carte" ci-dessus.'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    
+    if (_polygonCoordinates!.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Le polygone doit contenir au moins 3 points. Veuillez dessiner un nouveau polygone.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
         ),
       );
       return;
@@ -73,23 +108,44 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
     );
 
     final provider = Provider.of<ConstructionProvider>(context, listen: false);
-    final success = await provider.addConstruction(construction);
+    bool success;
+    
+    if (widget.constructionToEdit != null) {
+      // Mode édition
+      final updatedConstruction = Construction(
+        id: widget.constructionToEdit!.id,
+        adresse: construction.adresse,
+        contact: construction.contact,
+        type: construction.type,
+        geometry: construction.geometry,
+        dateCreation: widget.constructionToEdit!.dateCreation, // Garder la date originale
+        notes: construction.notes,
+      );
+      success = await provider.updateConstruction(updatedConstruction);
+    } else {
+      // Mode création
+      success = await provider.addConstruction(construction);
+    }
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Construction enregistrée avec succès'),
+        SnackBar(
+          content: Text(widget.constructionToEdit == null 
+              ? 'Construction enregistrée avec succès' 
+              : 'Construction modifiée avec succès'),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
         ),
       );
       Navigator.pop(context, true);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Erreur lors de l\'enregistrement'),
+          content: Text('Erreur lors de l\'enregistrement. Veuillez vérifier vos données et réessayer.'),
           backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
         ),
       );
     }
@@ -99,7 +155,7 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nouveau Relevé'),
+        title: Text(widget.constructionToEdit == null ? 'Nouveau Relevé' : 'Modifier Construction'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -122,16 +178,62 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        _polygonCoordinates == null
-                            ? 'Aucun polygone dessiné'
-                            : '${_polygonCoordinates!.length} points définis',
-                        style: TextStyle(
-                          color: _polygonCoordinates == null
-                              ? Colors.red
-                              : Colors.green,
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            _polygonCoordinates == null
+                                ? Icons.warning
+                                : Icons.check_circle,
+                            color: _polygonCoordinates == null
+                                ? Colors.red
+                                : Colors.green,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _polygonCoordinates == null
+                                  ? 'Aucun polygone dessiné'
+                                  : '${_polygonCoordinates!.length} points définis${_polygonCoordinates!.length >= 3 ? " ✓" : " (minimum 3 requis)"}',
+                              style: TextStyle(
+                                color: _polygonCoordinates == null
+                                    ? Colors.red
+                                    : _polygonCoordinates!.length >= 3
+                                        ? Colors.green
+                                        : Colors.orange,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      if (_polygonCoordinates != null && _polygonCoordinates!.length >= 3)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.green[700], size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Polygone valide ! Vous pouvez enregistrer.',
+                                    style: TextStyle(
+                                      color: Colors.green[700],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: _drawPolygon,
@@ -154,6 +256,9 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Veuillez entrer une adresse';
                   }
+                  if (value.trim().length < 5) {
+                    return 'L\'adresse doit contenir au moins 5 caractères';
+                  }
                   return null;
                 },
               ),
@@ -161,11 +266,25 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
               TextFormField(
                 controller: _contactController,
                 decoration: const InputDecoration(
-                  labelText: 'Contact',
+                  labelText: 'Contact (optionnel)',
+                  hintText: 'Ex: 0612345678',
                   prefixIcon: Icon(Icons.phone),
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value != null && value.isNotEmpty) {
+                    // Validation basique du format téléphone (chiffres, espaces, +, -)
+                    final phoneRegex = RegExp(r'^[\d\s\+\-\(\)]+$');
+                    if (!phoneRegex.hasMatch(value)) {
+                      return 'Format de téléphone invalide';
+                    }
+                    if (value.replaceAll(RegExp(r'[\s\+\-\(\)]'), '').length < 8) {
+                      return 'Le numéro doit contenir au moins 8 chiffres';
+                    }
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<ConstructionType>(
@@ -211,18 +330,24 @@ class _ConstructionFormScreenState extends State<ConstructionFormScreen> {
                 maxLines: 3,
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: _isLoading ? null : _save,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
                 ),
-                child: _isLoading
+                icon: _isLoading
                     ? const SizedBox(
                         height: 20,
                         width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
                       )
-                    : const Text('Enregistrer'),
+                    : const Icon(Icons.save),
+                label: Text(_isLoading ? 'Enregistrement...' : (widget.constructionToEdit == null ? 'Enregistrer' : 'Modifier')),
               ),
             ],
           ),

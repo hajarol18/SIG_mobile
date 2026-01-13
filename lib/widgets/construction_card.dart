@@ -6,6 +6,7 @@ class ConstructionCard extends StatelessWidget {
   final Construction construction;
   final VoidCallback? onTap;
   final VoidCallback? onMapTap;
+  final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
   const ConstructionCard({
@@ -13,6 +14,7 @@ class ConstructionCard extends StatelessWidget {
     required this.construction,
     this.onTap,
     this.onMapTap,
+    this.onEdit,
     this.onDelete,
   });
 
@@ -21,7 +23,11 @@ class ConstructionCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
@@ -124,6 +130,13 @@ class ConstructionCard extends StatelessWidget {
                       color: Colors.blue,
                       onPressed: onMapTap,
                       tooltip: 'Voir sur la carte',
+                    ),
+                  if (onEdit != null)
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      color: Colors.orange,
+                      onPressed: onEdit,
+                      tooltip: 'Modifier',
                     ),
                   if (onDelete != null)
                     IconButton(

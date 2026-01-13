@@ -4,6 +4,7 @@ import '../models/construction.dart';
 import '../providers/construction_provider.dart';
 import '../widgets/construction_card.dart';
 import 'map_screen.dart';
+import 'construction_form_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -19,6 +20,9 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Construction> _searchResults = [];
   bool _isSearching = false;
   bool _hasSearched = false;
+  String _sortBy = 'date';
+  bool _sortAscending = false;
+  bool _searchAsYouType = false;
 
   @override
   void dispose() {
@@ -35,12 +39,29 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     final provider = Provider.of<ConstructionProvider>(context, listen: false);
-    final results = await provider.searchConstructions(
+    var results = await provider.searchConstructions(
       type: _selectedType?.name,
       adresse: _adresseController.text.trim().isEmpty
           ? null
           : _adresseController.text.trim(),
     );
+
+    // Trier les résultats
+    results.sort((a, b) {
+      int comparison = 0;
+      switch (_sortBy) {
+        case 'date':
+          comparison = a.dateCreation.compareTo(b.dateCreation);
+          break;
+        case 'adresse':
+          comparison = a.adresse.compareTo(b.adresse);
+          break;
+        case 'type':
+          comparison = a.type.label.compareTo(b.type.label);
+          break;
+      }
+      return _sortAscending ? comparison : -comparison;
+    });
 
     setState(() {
       _searchResults = results;
@@ -58,19 +79,117 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _navigateToMapWithConstruction(Construction construction) {
+    if (construction.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de localiser cette construction'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const MapScreen(),
+        builder: (context) => MapScreen(constructionIdToFocus: construction.id),
       ),
     );
+  }
+
+  Future<void> _editConstruction(Construction construction) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ConstructionFormScreen(constructionToEdit: construction),
+      ),
+    );
+
+    if (result == true) {
+      // Recharger les résultats de recherche
+      await _search();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Construction modifiée avec succès'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recherche Multicritères'),
+        title: Text('Recherche${_hasSearched && _searchResults.isNotEmpty ? ' (${_searchResults.length})' : ''}'),
+        actions: [
+          if (_hasSearched && _searchResults.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.sort),
+              tooltip: 'Trier les résultats',
+              onSelected: (value) {
+                setState(() {
+                  if (value == 'toggle_order') {
+                    _sortAscending = !_sortAscending;
+                  } else if (value.startsWith('sort_')) {
+                    _sortBy = value.substring(5);
+                  }
+                });
+                _search(); // Re-trier
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'sort_header',
+                  enabled: false,
+                  child: Text('Trier par:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                PopupMenuItem(
+                  value: 'sort_date',
+                  child: Row(
+                    children: [
+                      Icon(_sortBy == 'date' ? Icons.check : null, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Date'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'sort_adresse',
+                  child: Row(
+                    children: [
+                      Icon(_sortBy == 'adresse' ? Icons.check : null, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Adresse'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'sort_type',
+                  child: Row(
+                    children: [
+                      Icon(_sortBy == 'type' ? Icons.check : null, size: 18),
+                      const SizedBox(width: 8),
+                      const Text('Type'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'toggle_order',
+                  child: Row(
+                    children: [
+                      Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward, size: 18),
+                      const SizedBox(width: 8),
+                      Text(_sortAscending ? 'Croissant' : 'Décroissant'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -213,6 +332,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 },
                                 onMapTap: () =>
                                     _navigateToMapWithConstruction(construction),
+                                onEdit: () => _editConstruction(construction),
                                 onDelete: null, // Pas de suppression depuis la recherche
                               );
                             },
