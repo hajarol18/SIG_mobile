@@ -1,0 +1,45 @@
+name: sig_mobile
+description: Application Mobile de Relevé Cartographique (SIG) pour l'agence urbaine
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Base de données
+  sqflite: ^2.3.0
+  path: ^1.8.3
+
+  # Carte et géolocalisation
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.1
+
+  # Interface utilisateur
+  cupertino_icons: ^1.0.6
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.0
+
+  # Gestion d'état
+  provider: ^6.1.1
+
+  # Utilitaires
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
