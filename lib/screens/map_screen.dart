@@ -11,6 +11,9 @@ import '../providers/auth_provider.dart';
 import '../models/construction.dart';
 import 'construction_form_screen.dart';
 import 'construction_list_screen.dart';
+import 'route_screen.dart';
+import 'measurement_screen.dart';
+import 'proximity_search_screen.dart';
 
 class MapScreen extends StatefulWidget {
   final int? constructionIdToFocus;
@@ -268,6 +271,37 @@ class _MapScreenState extends State<MapScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  builder: (context) => RouteScreen(
+                    construction: construction,
+                    currentPosition: _currentPosition,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.navigation, size: 18),
+            label: const Text('Itinéraire'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MeasurementScreen(construction: construction),
+                ),
+              );
+            },
+            icon: const Icon(Icons.square_foot, size: 18),
+            label: const Text('Mesures'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
                   builder: (context) => ConstructionFormScreen(constructionToEdit: construction),
                 ),
               );
@@ -422,15 +456,35 @@ class _MapScreenState extends State<MapScreen> {
                 Positioned(
                   bottom: 20,
                   right: 20,
-                  child: FloatingActionButton(
-                    heroTag: 'location',
-                    onPressed: () {
-                      if (_currentPosition != null) {
-                        _mapController.move(_currentPosition!, 15.0);
-                      }
-                    },
-                    tooltip: 'Ma position',
-                    child: const Icon(Icons.my_location),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FloatingActionButton(
+                        heroTag: 'proximity',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ProximitySearchScreen(),
+                            ),
+                          );
+                        },
+                        tooltip: 'Recherche par proximité',
+                        backgroundColor: Colors.green,
+                        child: const Icon(Icons.near_me),
+                      ),
+                      const SizedBox(height: 8),
+                      FloatingActionButton(
+                        heroTag: 'location',
+                        onPressed: () {
+                          if (_currentPosition != null) {
+                            _mapController.move(_currentPosition!, 15.0);
+                          }
+                        },
+                        tooltip: 'Ma position',
+                        child: const Icon(Icons.my_location),
+                      ),
+                    ],
                   ),
                 ),
                 // Légende améliorée en bas à gauche

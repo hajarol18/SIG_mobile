@@ -62,7 +62,6 @@ class _MyAppState extends State<MyApp> {
             builders: {
               TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
               TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              TargetPlatform.web: FadeUpwardsPageTransitionsBuilder(),
             },
           ),
         ),
@@ -78,7 +77,6 @@ class _MyAppState extends State<MyApp> {
             builders: {
               TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
               TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              TargetPlatform.web: FadeUpwardsPageTransitionsBuilder(),
             },
           ),
         ),

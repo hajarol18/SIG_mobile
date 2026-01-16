@@ -1,12 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
 import '../models/construction.dart';
 import '../providers/construction_provider.dart';
 import '../widgets/construction_card.dart';
+import '../utils/pdf_export.dart';
 import 'search_screen.dart';
 import 'map_screen.dart';
 import 'construction_form_screen.dart';
+import 'statistics_screen.dart';
+import '../utils/kml_export.dart';
+import '../utils/gpx_export.dart';
 
 class ConstructionListScreen extends StatefulWidget {
   const ConstructionListScreen({super.key});
@@ -266,12 +273,30 @@ class _ConstructionListScreenState extends State<ConstructionListScreen> {
           },
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const StatisticsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Statistiques avancées',
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             tooltip: 'Plus d\'options',
             onSelected: (value) {
               if (value == 'export') {
                 _exportData(context);
+              } else               if (value == 'export_pdf') {
+                _exportPdf(context);
+              } else if (value == 'export_kml') {
+                _exportKml(context);
+              } else if (value == 'export_gpx') {
+                _exportGpx(context);
               } else if (value.startsWith('sort_')) {
                 setState(() {
                   _sortBy = value.substring(5);
@@ -295,6 +320,37 @@ class _ConstructionListScreenState extends State<ConstructionListScreen> {
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'export_pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Exporter en PDF'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export_kml',
+                child: Row(
+                  children: [
+                    Icon(Icons.map, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text('Exporter en KML (Google Earth)'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export_gpx',
+                child: Row(
+                  children: [
+                    Icon(Icons.explore, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('Exporter en GPX (GPS)'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'export',
                 child: Row(
@@ -755,6 +811,25 @@ class _ConstructionListScreenState extends State<ConstructionListScreen> {
     );
   }
 
+  IconData _getIconForType(ConstructionType type) {
+    switch (type) {
+      case ConstructionType.residentiel:
+        return Icons.home;
+      case ConstructionType.commercial:
+        return Icons.store;
+      case ConstructionType.industriel:
+        return Icons.factory;
+      case ConstructionType.administratif:
+        return Icons.business;
+      case ConstructionType.educatif:
+        return Icons.school;
+      case ConstructionType.sanitaire:
+        return Icons.local_hospital;
+      case ConstructionType.autre:
+        return Icons.location_city;
+    }
+  }
+
   Future<void> _exportData(BuildContext context) async {
     final provider = Provider.of<ConstructionProvider>(context, listen: false);
     if (provider.constructions.isEmpty) {
@@ -835,6 +910,206 @@ class _ConstructionListScreenState extends State<ConstructionListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur lors de l\'export: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportPdf(BuildContext context) async {
+    final provider = Provider.of<ConstructionProvider>(context, listen: false);
+    if (provider.constructions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune donnée à exporter'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      if (context.mounted) {
+        // Afficher un indicateur de chargement
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+
+        // Générer le PDF
+        final pdf = await PdfExport.generateReport(
+          constructions: provider.constructions,
+          title: 'Rapport des Constructions',
+        );
+
+        // Fermer le dialog de chargement
+        if (context.mounted) {
+          Navigator.pop(context);
+        }
+
+        // Afficher le PDF
+        if (context.mounted) {
+          await Printing.layoutPdf(
+            onLayout: (PdfPageFormat format) async => pdf.save(),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        // Fermer le dialog de chargement s'il est ouvert
+        Navigator.pop(context);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'export PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportKml(BuildContext context) async {
+    final provider = Provider.of<ConstructionProvider>(context, listen: false);
+    if (provider.constructions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune donnée à exporter'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final kmlContent = KmlExport.exportToKml(
+        provider.constructions,
+        name: 'Constructions SIG Mobile',
+      );
+
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.map, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Export KML'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  kmlContent,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Copier dans le presse-papier
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Copiez le contenu KML ci-dessus pour sauvegarder'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('Copier'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'export KML: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportGpx(BuildContext context) async {
+    final provider = Provider.of<ConstructionProvider>(context, listen: false);
+    if (provider.constructions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucune donnée à exporter'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final gpxContent = GpxExport.exportToGpx(
+        provider.constructions,
+        name: 'Constructions SIG Mobile',
+      );
+
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.explore, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('Export GPX'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  gpxContent,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Copier dans le presse-papier
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Copiez le contenu GPX ci-dessus pour sauvegarder'),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('Copier'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'export GPX: $e'),
             backgroundColor: Colors.red,
           ),
         );
